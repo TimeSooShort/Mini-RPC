@@ -6,6 +6,6 @@ import lombok.Data;
 public class RpcResponse {
 
     private String requestId;
-    private Throwable error;
+    private Throwable cause;
     private Object result;
 }

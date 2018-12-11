@@ -19,4 +19,8 @@ public class Constant {
         int LENGTH_ADJUSTMENT = 0;
         int INITIAL_BYTES_TO_STRIP = 4;
     }
+
+    public enum ConnectionFailureStrategy {
+        RETRY, CLOSE
+    }
 }

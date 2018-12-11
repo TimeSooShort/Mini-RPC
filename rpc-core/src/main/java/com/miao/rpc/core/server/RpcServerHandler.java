@@ -36,7 +36,9 @@ public class RpcServerHandler extends SimpleChannelInboundHandler<Message> {
             log.info("接收到客户端的PING心跳请求，发送PONG心跳反应");
             channelHandlerContext.writeAndFlush(Message.PONG_MSG);
         } else if (type == Message.REQUEST) {
-
+            // Worker任务是利用反射调用方法得到结果，由于不是EventLoop的线程
+            // 会回到EventLoop的线程，让其来进行接下来操作
+            pool.execute(new Worker(channelHandlerContext, message.getRequest(), handlerMap));
         }
     }
 

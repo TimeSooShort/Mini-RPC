@@ -6,9 +6,7 @@ import com.miao.rpc.core.coder.RpcEncoder;
 import com.miao.rpc.core.registry.ServiceRegistry;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -69,7 +67,7 @@ public class RpcServer implements ApplicationContextAware{
         log.info("handlerMap: {}", this.handlerMap);
     }
 
-    public void run() {
+    public void run(String serverAddress) {
         EventLoopGroup bossGroup = new NioEventLoopGroup();
         EventLoopGroup workerGroup = new NioEventLoopGroup();
         try {
@@ -87,8 +85,30 @@ public class RpcServer implements ApplicationContextAware{
                                             MAX_FRAME_LENGTH, LENGTH_FIELD_OFFSET, LENGTH_FIELD_LENGTH,
                                             LENGTH_ADJUSTMENT, INITIAL_BYTES_TO_STRIP))
                                     .addLast("RpcDecoder", new RpcDecoder())
+                                    .addLast("RpcServerHandler", new RpcServerHandler(handlerMap));
                         }
                     })
+                    // 俩个TCP维护的队列的总大小
+                    .option(ChannelOption.SO_BACKLOG, 128)
+                    .option(ChannelOption.SO_SNDBUF, 32*1024)
+                    .option(ChannelOption.SO_RCVBUF, 32*1024)
+                    .childOption(ChannelOption.SO_KEEPALIVE, true);
+             String[] address = serverAddress.split(":");
+             String host = address[0];
+             Integer port = Integer.parseInt(address[1]);
+            ChannelFuture future = bootstrap.bind(host, port).sync();
+            log.info("服务器启动");
+            registry.registry(serverAddress);
+            log.info("服务器向Zookeeper注册完毕");
+            initHandler();
+            // 应用程序一直等待直到channel关闭
+            future.channel().closeFuture().sync();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            registry.close();
+            workerGroup.shutdownGracefully();
+            bossGroup.shutdownGracefully();
         }
     }
 

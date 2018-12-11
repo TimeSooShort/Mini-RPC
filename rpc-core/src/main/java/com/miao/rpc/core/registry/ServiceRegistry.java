@@ -26,9 +26,6 @@ public class ServiceRegistry extends ZookeeperClient {
                 log.error("创建/registry节点失败", e);
             }
         }
-        // 创建data节点
-        else {
-            createNode(data, ZK_DATA_PATH);
-        }
+        createNode(data, ZK_DATA_PATH);
     }
 }
