@@ -1,28 +1,56 @@
 package com.miao.rpc.core.client;
 
 import com.miao.rpc.core.domain.Message;
+import com.miao.rpc.core.domain.RpcResponse;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import javafx.event.EventType;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.Map;
 
 @Slf4j
 public class RpcClientHandler extends SimpleChannelInboundHandler<Message> {
+    private RpcClient client;
+    private Map<String, RpcResponseFuture> map;
+
+    public RpcClientHandler(RpcClient client, Map<String, RpcResponseFuture> map) {
+        this.client = client;
+        this.map = map;
+    }
+
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Message msg) throws Exception {
-
+        log.info("接收到服务器响应");
+        if (msg.getType() == Message.PONG) {
+            log.info("服务器正常");
+        }else if (msg.getType() == Message.RESPONSE) {
+            RpcResponse response = msg.getResponse();
+            if (map.containsKey(response.getRequestId())) {
+                RpcResponseFuture responseFuture = map.remove(response.getRequestId());
+                responseFuture.setResponse(response);
+            }
+        }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        super.exceptionCaught(ctx, cause);
+        log.info("客户端捕获异常");
+        // 在这里处理异常，不会继续往下传递
+        // 异常处理调用clinet的handleException，由于默认策略
+        cause.printStackTrace();
+        client.handleException();
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        log.info("客户端通道已开启");
+        // 说明NioSocketChannel注册完成，在register0中最后调用
+        // pipeline.fireChannelActive()，给channel注册READ事件，并触发
+        // handler链上handler的channelActive方法
+        log.info("channelActive被触发");
     }
 
     @Override

@@ -4,6 +4,8 @@ import com.github.rholder.retry.*;
 import com.miao.rpc.core.coder.RpcDecoder;
 import com.miao.rpc.core.coder.RpcEncoder;
 import com.miao.rpc.core.constant.Constant.ConnectionFailureStrategy;
+import com.miao.rpc.core.domain.Message;
+import com.miao.rpc.core.domain.RpcRequest;
 import com.miao.rpc.core.registry.ServiceDiscovery;
 import com.miao.rpc.core.registry.ServiceRegistry;
 import io.netty.bootstrap.Bootstrap;
@@ -17,7 +19,9 @@ import io.netty.handler.timeout.IdleStateHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import java.rmi.server.ServerNotActiveException;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -30,16 +34,19 @@ import static com.miao.rpc.core.constant.Constant.LengthFieldConstant.INITIAL_BY
 @Slf4j
 public class RpcClient {
 
-    private String serverAddress;
-    private ConnectionFailureStrategy connectionFailureStrategy = ConnectionFailureStrategy.RETRY;
+    private ConnectionFailureStrategy connectionFailureStrategy = ConnectionFailureStrategy.RETRY; // 默认连接失败策略
     private ServiceDiscovery discovery;
-    private String clientID = UUID.randomUUID().toString();
+    private String clientID = UUID.randomUUID().toString(); // 用于ConsistentHashLoadBalance
     private Bootstrap bootstrap;
     private Channel socketChannel;
     private EventLoopGroup group;
+    // 每个request都有个requestId，其结果封装成RpcResponseFuture
+    // 该map存储的就是这种关系，为了保证安全，选用ConcurrentHashMap
+    private Map<String, RpcResponseFuture> requestWithItsResponse;
 
     public void init() {
         log.info("初始化RPC客户端");
+        requestWithItsResponse = new ConcurrentHashMap<>();
         this.group = new NioEventLoopGroup();
         this.bootstrap = new Bootstrap();
         this.bootstrap.group(group).channel(NioSocketChannel.class)
@@ -53,7 +60,7 @@ public class RpcClient {
                                 .addLast("LengthFieldBasedFrameDecoder", new LengthFieldBasedFrameDecoder(MAX_FRAME_LENGTH, LENGTH_FIELD_OFFSET,
                                         LENGTH_FIELD_LENGTH, LENGTH_ADJUSTMENT, INITIAL_BYTES_TO_STRIP))
                                 .addLast("RpcDecoder", new RpcDecoder())
-                                .addLast("RpcClientHandler", new RpcClientHandler());
+                                .addLast("RpcClientHandler", new RpcClientHandler(RpcClient.this, requestWithItsResponse));
                     }
                 })
                 .option(ChannelOption.SO_KEEPALIVE, true);
@@ -132,6 +139,23 @@ public class RpcClient {
         Integer port = Integer.parseInt(address[1]);
         ChannelFuture future = bootstrap.connect(host, port).sync();
         return future.channel();
+    }
+
+    /**
+     * 客户端通过此方法发送请求
+     * @param request
+     * @return
+     */
+    public RpcResponseFuture execute(RpcRequest request) {
+        if (this.socketChannel == null) {
+            throw new RuntimeException("客户端连接异常，socketChannel为null");
+        }
+        log.info("客户端发起请求:{}", request);
+        RpcResponseFuture responseFuture = new RpcResponseFuture();
+        this.requestWithItsResponse.put(request.getRequestId(), responseFuture);
+        this.socketChannel.writeAndFlush(Message.buildRequest(request));
+        log.info("请求已发送");
+        return responseFuture;
     }
 
     public void setDiscovery(ServiceDiscovery discovery) {

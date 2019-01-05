@@ -8,4 +8,8 @@ public class RpcResponse {
     private String requestId;
     private Throwable cause;
     private Object result;
+
+    public boolean hasError() {
+        return cause != null;
+    }
 }
