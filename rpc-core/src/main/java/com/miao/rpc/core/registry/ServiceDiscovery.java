@@ -46,7 +46,7 @@ public class ServiceDiscovery extends ZookeeperClient {
                 dataList.add(new String(bytes, Constant.UTF_8));
             }
             loadBalance.update(dataList);
-            log.debug("node data:{}", dataList);
+            log.info("node data:{}", dataList);
         } catch (InterruptedException | KeeperException e) {
             log.error("", e);
         }

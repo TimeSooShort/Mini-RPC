@@ -4,6 +4,7 @@ import com.miao.rpc.core.client.RpcClient;
 import com.miao.rpc.core.client.RpcResponseFuture;
 import com.miao.rpc.core.domain.RpcRequest;
 import com.miao.rpc.core.domain.RpcResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.InitializingBean;
 
@@ -24,6 +25,7 @@ import java.util.UUID;
  * 客户端要调用的类的实现不再本地，在服务端，那客户端调用的是什么？就是proxy
  * proxy就是rpc服务暴露接口在客户端的实现类
  */
+@Slf4j
 public class RpcProxyFactoryBean implements FactoryBean<Object>, InitializingBean {
     private RpcClient client;
     private Class<?> interfaceClass; // 要生成的代理的类型
@@ -52,6 +54,7 @@ public class RpcProxyFactoryBean implements FactoryBean<Object>, InitializingBea
                 (proxy, method, args) -> {
                     // 创建并初始化RpcRequest
                     RpcRequest request = new RpcRequest();
+                    log.info("调用远程服务：{} {}", method.getDeclaringClass().getName(), method.getName());
                     request.setClassName(method.getDeclaringClass().getName());
                     request.setMethodName(method.getName());
                     // 该请求的标识，之后会根据该标识来获取结果
@@ -61,6 +64,7 @@ public class RpcProxyFactoryBean implements FactoryBean<Object>, InitializingBea
                     // 发送请求，并获得响应
                     RpcResponseFuture responseFuture = client.execute(request);
                     RpcResponse response = responseFuture.getResponse(); // 阻塞
+                    log.info("客户端读到响应");
                     // 有异常就抛
                     if (response.hasError()) {
                         throw response.getCause();

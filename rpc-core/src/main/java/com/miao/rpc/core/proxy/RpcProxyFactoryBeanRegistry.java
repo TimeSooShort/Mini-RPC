@@ -41,12 +41,13 @@ public class RpcProxyFactoryBeanRegistry implements BeanDefinitionRegistryPostPr
 
     @Override
     public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry beanDefinitionRegistry) throws BeansException {
-        log.info("替换@Reference修饰的field指向proxy");
+        log.info("正在添加动态代理类的FactoryBean");
         // 扫描工具类
         ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false);
         scanner.addIncludeFilter((metadataReader, metadataReaderFactory) -> true); // 设置过滤条件，这里扫描所有
         Set<BeanDefinition> beanDefinitionSet = scanner.findCandidateComponents(basePackage); // 扫描指定路径下的类
         for (BeanDefinition beanDefinition : beanDefinitionSet) {
+            log.info("扫描到的类的名称{}", beanDefinition.getBeanClassName());
             String beanClassName = beanDefinition.getBeanClassName(); // 得到class name
             Class<?> beanClass = null;
             try {
@@ -63,7 +64,9 @@ public class RpcProxyFactoryBeanRegistry implements BeanDefinitionRegistryPostPr
                 RpcReference reference = field.getAnnotation(RpcReference.class);
                 Class<?> fieldClass = field.getType(); // 获取该标识下的类的类型，用于生成相应proxy
                 if (reference != null) {
-                    BeanDefinitionHolder holder = createBeanDefinition(fieldClass);
+                    log.info("创建" + fieldClass.getName() + "的动态代理");
+                    BeanDefinitionHolder holder = createBeanDefinition(fieldClass.getName());
+                    log.info("创建成功");
                     BeanDefinitionReaderUtils.registerBeanDefinition(holder, beanDefinitionRegistry);
                 }
             }
@@ -73,16 +76,24 @@ public class RpcProxyFactoryBeanRegistry implements BeanDefinitionRegistryPostPr
 
     /**
      * 创建fieldClass类型的代理类proxy的BeanDefinition
-     * @param fieldClass
      * @return
      */
-    private BeanDefinitionHolder createBeanDefinition(Class<?> fieldClass) {
+//    private BeanDefinitionHolder createBeanDefinition(Class<?> fieldClass) {
+//        BeanDefinitionBuilder builder = BeanDefinitionBuilder.genericBeanDefinition(RpcProxyFactoryBean.class);
+//        String className = fieldClass.getName();
+//        // bean的name首字母小写，spring通过它来注入
+//        String beanName = StringUtils.uncapitalize(className.substring(className.lastIndexOf('.')+1));
+//        // 给RpcProxyFactoryBean赋值
+//        builder.addPropertyValue("interfaceClass", fieldClass);
+//        builder.addPropertyValue("client", client);
+//        return new BeanDefinitionHolder(builder.getBeanDefinition(), beanName);
+//    }
+    private BeanDefinitionHolder createBeanDefinition(String className) {
         BeanDefinitionBuilder builder = BeanDefinitionBuilder.genericBeanDefinition(RpcProxyFactoryBean.class);
-        String className = fieldClass.getName();
         // bean的name首字母小写，spring通过它来注入
         String beanName = StringUtils.uncapitalize(className.substring(className.lastIndexOf('.')+1));
         // 给RpcProxyFactoryBean赋值
-        builder.addPropertyValue("interfaceClass", fieldClass);
+        builder.addPropertyValue("interfaceClass", className);
         builder.addPropertyValue("client", client);
         return new BeanDefinitionHolder(builder.getBeanDefinition(), beanName);
     }

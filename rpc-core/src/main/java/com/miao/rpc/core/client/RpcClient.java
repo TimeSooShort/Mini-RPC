@@ -54,7 +54,7 @@ public class RpcClient {
                     @Override
                     protected void initChannel(SocketChannel ch) throws Exception {
                         ch.pipeline()
-                                .addLast("IdleStateHandler", new IdleStateHandler(0, 5, 0))
+                                .addLast("IdleStateHandler", new IdleStateHandler(0, 7, 0))
                                 .addLast("LengthFieldPrepender", new LengthFieldPrepender(LENGTH_FIELD_LENGTH, LENGTH_ADJUSTMENT))
                                 .addLast("RpcEncoder", new RpcEncoder())
                                 .addLast("LengthFieldBasedFrameDecoder", new LengthFieldBasedFrameDecoder(MAX_FRAME_LENGTH, LENGTH_FIELD_OFFSET,

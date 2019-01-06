@@ -47,10 +47,7 @@ public class RpcClientHandler extends SimpleChannelInboundHandler<Message> {
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        // 说明NioSocketChannel注册完成，在register0中最后调用
-        // pipeline.fireChannelActive()，给channel注册READ事件，并触发
-        // handler链上handler的channelActive方法
-        log.info("channelActive被触发");
+        log.info("客户端通道已开启");
     }
 
     @Override
