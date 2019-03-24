@@ -14,6 +14,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
+import org.springframework.core.annotation.Order;
 
 @Configuration
 @ConditionalOnMissingBean(RpcProxyFactoryBeanRegistry.class)
@@ -25,7 +27,7 @@ public class RpcClientAutoConfiguration {
     @Autowired
     private ApplicationContext applicationContext;
 
-    private static RpcClient client;
+    private static RpcClient client; // 为什么为static解释在下面
 
     @Bean(name = "CONSISTENT_HASH")
     public ConsistentHashLoadBalance consistentHashLoadBalance() {
@@ -48,8 +50,9 @@ public class RpcClientAutoConfiguration {
     }
 
     /**
-     * 因为RPCProxyFactoryBeanRegistry初始化是在常规bean还没有初始化之前进行的，所以是拿不到@Autowired的属性的
-     * 只能去直接读配置文件才能得到basePackage
+     * 因为RPCProxyFactoryBeanRegistry初始化是在常规bean还没有初始化之前进行的，这就造成连个问题
+     * 1，必须去直接读配置文件才能得到basePackage
+     * 2，client对象会被赋给本类的成员变量，但本类还未初始化，所以需将client申明为static
      * @return
      */
     @Bean
