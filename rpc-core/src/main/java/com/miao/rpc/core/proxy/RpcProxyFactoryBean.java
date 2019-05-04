@@ -14,8 +14,7 @@ import java.lang.reflect.Proxy;
 import java.util.UUID;
 
 /**
- * 实现InitializingBean：bean的所有必要属性已由容器设置后执行初始化工作。
- * 初始化时afterPropertiesSet被调用，生成interfaceClass类型的代理类
+ * InitializingBean:初始化时afterPropertiesSet被调用，生成interfaceClass类型的代理类
  * 我们实现了一个后置处理器RpcProxyFactoryBeanRegistry，在初始化之前为client与interfaceClass赋值
  * 这里实现InitializingBean，便是在初始化时生成interfaceClass类型的proxy
  *

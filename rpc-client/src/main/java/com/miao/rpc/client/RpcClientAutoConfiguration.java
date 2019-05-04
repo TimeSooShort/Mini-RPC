@@ -27,7 +27,12 @@ public class RpcClientAutoConfiguration {
     @Autowired
     private ApplicationContext applicationContext;
 
-    private static RpcClient client; // 为什么为static解释在下面
+    // 为什么为static? 因为下面的rpcProxyFactoryBeanRegistry方法中要用到client
+    // 而该方法必须是static的，因为在@Configuration的类里，若@Bean标注的方法的
+    // 返回类型是BeanDefinitionRegistryPostProcessor，则该方法必须是static的
+    // https://github.com/ulisesbocchio/jasypt-spring-boot/issues/45
+    //https://stackoverflow.com/questions/41939494/springboot-cannot-enhance-configuration-bean-definition-beannameplaceholderreg
+    private static RpcClient client = new RpcClient();
 
     @Bean(name = "CONSISTENT_HASH")
     public ConsistentHashLoadBalance consistentHashLoadBalance() {
@@ -50,15 +55,16 @@ public class RpcClientAutoConfiguration {
     }
 
     /**
-     * 因为RPCProxyFactoryBeanRegistry初始化是在常规bean还没有初始化之前进行的，这就造成连个问题
-     * 1，必须去直接读配置文件才能得到basePackage
-     * 2，client对象会被赋给本类的成员变量，但本类还未初始化，所以需将client申明为static
-     * @return
+     * Cannot enhance @Configuration bean definition 'com.miao.rpc.client.RpcClientAutoConfiguration'
+     * since its singleton instance has been created too early.
+     * The typical cause is a non-static @Bean method with a BeanDefinitionRegistryPostProcessor return type:
+     * Consider declaring such methods as 'static'.
+     *
+     * 在@Configuration的类里，若@Bean标注的方法的返回类型是BeanDefinitionRegistryPostProcessor，则该方法必须是static的
      */
     @Bean
     public static RpcProxyFactoryBeanRegistry rpcProxyFactoryBeanRegistry(){
         log.info("创建RpcClient实例");
-        client = new RpcClient();
         String basePackage = PropertityUtil.getProperty("rpc.serverBasePackage");
         return new RpcProxyFactoryBeanRegistry(basePackage, client);
     }

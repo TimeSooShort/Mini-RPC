@@ -25,7 +25,7 @@ public class RpcDecoder extends ByteToMessageDecoder {
         } else {
             byte[] bytes = new byte[byteBuf.readableBytes()];
             byteBuf.readBytes(bytes);
-            // core包是被客户端与服务端两者引用的
+            // core包是被客户端与服务端两者引用的,所以这里同时有对REQUEST,RESPONSE二者的处理
             if (type == Message.REQUEST) {
                 list.add(Message.buildRequest(ProtostuffUtil.deserialize(bytes, RpcRequest.class)));
             } else if (type == Message.RESPONSE) {
