@@ -65,6 +65,7 @@ public class RpcClientAutoConfiguration {
     @Bean
     public static RpcProxyFactoryBeanRegistry rpcProxyFactoryBeanRegistry(){
         log.info("创建RpcClient实例");
+        // 这里只能直接去property文件中获取，因为此时配置文件对象还未注入
         String basePackage = PropertityUtil.getProperty("rpc.serverBasePackage");
         return new RpcProxyFactoryBeanRegistry(basePackage, client);
     }

@@ -39,6 +39,19 @@ public class RpcProxyFactoryBeanRegistry implements BeanDefinitionRegistryPostPr
         this.client = client;
     }
 
+    /**
+     * 扫描指定路径下的所有类，得到其class对象，查询class对象中是否有@RpcReference注解的字段，
+     * 为该字段生成RpcProxyFactoryBean类型的beanDefinition，使其与字段的beanName关联，
+     * RpcProxyFactoryBean是个FactoryBean，该类初始化时返回的是getObject方法的对象的bean，
+     * 而我们的RpcProxyFactoryBean同样实现了InitializingBean，初始化时会先调用它的afterPropertiesSet方法，
+     * 在该方法中利用反射创建代理类对象，这样在客户端代码中@Autowired便将代理类注入到了@RpcReference注解的字段，
+     * 客户端对服务接口方法的调用，实际上触发了代理类的invoke方法，在该方法中收集信息，如类名，方法名，参数
+     * 再向服务端发出请求。
+     *
+     * 每个 beanName 对应一个 beanDefinition，相同的会覆盖，逻辑在DefaultListableBeanFactory#registerBeanDefinition中
+     * 可以看到 beanName -> beanDefinition的映射关系被存储在ConcurrentHashMap中。所以下面的实现中多个类调用相同
+     * 服务接口会被注入同一个实现类，我们的FactoryBean是单例的，即其isSingleton返回true。
+     */
     @Override
     public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry beanDefinitionRegistry) throws BeansException {
         log.info("正在添加动态代理类的FactoryBean");
