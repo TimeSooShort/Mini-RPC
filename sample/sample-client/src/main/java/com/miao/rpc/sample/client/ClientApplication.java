@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 @Slf4j
 public class ClientApplication implements CommandLineRunner{
+    //这里idea会报错，不过不影响程序正常运行
     @Autowired
     @RpcReference
     HelloService helloService;
@@ -22,14 +23,16 @@ public class ClientApplication implements CommandLineRunner{
         app.run(args);
     }
 
-    public void test() throws InterruptedException {
-        log.info(helloService.hello(new User("张大")));
-        log.info(helloService.hello(new User("张二")));
+    public void test() {
+        new Thread(() -> {
+            for (int i = 0; i < 3; i++){
+                log.info(helloService.hello(new User("张大"))+i);
+                log.info(helloService.hello(new User("张二"))+i);
+                log.info(helloService.hello(new User("张三"))+i);
+                log.info(helloService.hello(new User("李四"))+i);
+            }
 
-        Thread.sleep(3000);
-        log.info(helloService.hello(new User("张三")));
-        Thread.sleep(8000);
-        log.info(helloService.hello(new User("李四")));
+        }).start();
     }
 
     @Override

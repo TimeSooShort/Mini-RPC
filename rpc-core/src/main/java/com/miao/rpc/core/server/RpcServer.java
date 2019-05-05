@@ -88,11 +88,19 @@ public class RpcServer implements ApplicationContextAware{
                                     .addLast("RpcServerHandler", new RpcServerHandler(handlerMap));
                         }
                     })
-                    // 俩个TCP维护的队列的总大小
+                    // 对应的是tcp/ip协议listen函数中的backlog参数，
+                    // 函数listen(int socketfd,int backlog)用来初始化服务端可连接队列，
+                    // 服务端处理客户端连接请求是顺序处理的，所以同一时间只能处理一个客户端连接，
+                    // 多个客户端来的时候，服务端将不能处理的客户端连接请求放在队列中等待处理，backlog参数指定了队列的大小
+                    // 默认值，Windows为200，其他为128。
                     .option(ChannelOption.SO_BACKLOG, 128)
+                    // Socket参数，TCP数据发送缓冲区大小。该缓冲区即TCP发送滑动窗口，
+                    // linux操作系统可使用命令：cat /proc/sys/net/ipv4/tcp_smem查询其大小。
                     .option(ChannelOption.SO_SNDBUF, 32*1024)
-                    .option(ChannelOption.SO_RCVBUF, 32*1024)
-                    .childOption(ChannelOption.SO_KEEPALIVE, true);
+                    // Socket参数，TCP数据接收缓冲区大小。该缓冲区即TCP接收滑动窗口，
+                    // linux操作系统可使用命令：cat /proc/sys/net/ipv4/tcp_rmem查询其大小。
+                    // 一般情况下，该值可由用户在任意时刻设置，但当设置值超过64KB时，需要在连接到远端之前设置。
+                    .option(ChannelOption.SO_RCVBUF, 32*1024);
              String[] address = serverAddress.split(":");
              String host = address[0];
              Integer port = Integer.parseInt(address[1]);

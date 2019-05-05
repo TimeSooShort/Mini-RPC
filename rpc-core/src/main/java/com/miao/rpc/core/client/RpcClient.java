@@ -16,6 +16,7 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.handler.timeout.IdleStateHandler;
+import io.netty.util.AttributeKey;
 import lombok.extern.slf4j.Slf4j;
 
 import java.rmi.server.ServerNotActiveException;
@@ -43,11 +44,12 @@ public class RpcClient {
     // 每个request都有个requestId，其结果封装成RpcResponseFuture
     // 该map存储的就是这种关系，为了保证安全，选用ConcurrentHashMap
     private Map<String, RpcResponseFuture> requestWithItsResponse;
+    public static final AttributeKey<RpcRequest> CURRENT_REQUEST = AttributeKey.valueOf("current.request");
 
     public void init() {
         log.info("初始化RPC客户端");
-        requestWithItsResponse = new ConcurrentHashMap<>();
         this.group = new NioEventLoopGroup();
+        this.requestWithItsResponse = new ConcurrentHashMap<>();
         this.bootstrap = new Bootstrap();
         this.bootstrap.group(group).channel(NioSocketChannel.class)
                 .handler(new ChannelInitializer<SocketChannel>() {
@@ -62,8 +64,7 @@ public class RpcClient {
                                 .addLast("RpcDecoder", new RpcDecoder())
                                 .addLast("RpcClientHandler", new RpcClientHandler(RpcClient.this, requestWithItsResponse));
                     }
-                })
-                .option(ChannelOption.SO_KEEPALIVE, true);
+                });
         try {
             this.socketChannel = connect();
             log.info("客户端初始化完毕");
@@ -81,7 +82,7 @@ public class RpcClient {
             log.info("连接失败的处理策略为直接关闭， 关闭客户端");
             this.close();
         } else if (connectionFailureStrategy == ConnectionFailureStrategy.RETRY) {
-            log.info("连接失败的处理策略为重新连接，开始重试");
+            log.info("开始重新连接");
             try {
                 this.socketChannel = reconnect();
             } catch (ExecutionException e) {
@@ -117,14 +118,23 @@ public class RpcClient {
     private Channel reconnect() throws ExecutionException, RetryException {
         Retryer<Channel> retryer = RetryerBuilder.<Channel>newBuilder()
                 .retryIfExceptionOfType(Exception.class)
-                .withWaitStrategy(WaitStrategies.incrementingWait(5,
-                        TimeUnit.SECONDS, 5, TimeUnit.SECONDS))
-                .withStopStrategy(StopStrategies.stopAfterAttempt(5))
+                .withWaitStrategy(WaitStrategies.incrementingWait(2,
+                        TimeUnit.SECONDS, 1, TimeUnit.SECONDS))
+                .withStopStrategy(StopStrategies.stopAfterAttempt(2))
                 .build();
         return retryer.call(() -> {
             log.info("重新连接中...");
             return connect();
         });
+    }
+
+    /**
+     * RpcClientHandler 是客户端handler链中最后一个inbound handler，在其exceptionCaught对一场进行处理，
+     * 发生异常便重新发送信息
+     */
+    public void reExecute(RpcRequest request) {
+        log.info(request.getRequestId() + " 重新请求");
+        this.socketChannel.writeAndFlush(Message.buildRequest(request));
     }
 
     private Channel connect() throws ServerNotActiveException, InterruptedException {
@@ -147,12 +157,19 @@ public class RpcClient {
      * @return
      */
     public RpcResponseFuture execute(RpcRequest request) {
-        if (this.socketChannel == null) {
-            throw new RuntimeException("客户端连接异常，socketChannel为null");
+        // 这里为了处理重连发生时，请求仍在继续的情况
+        while (this.socketChannel == null) {
+            try {
+                log.info("客户端连接未建立，等待连接完成");
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
         log.info("客户端发起请求:{}", request);
         RpcResponseFuture responseFuture = new RpcResponseFuture();
         this.requestWithItsResponse.put(request.getRequestId(), responseFuture);
+        this.socketChannel.attr(CURRENT_REQUEST).set(request);
         this.socketChannel.writeAndFlush(Message.buildRequest(request));
         log.info("请求已发送");
         return responseFuture;

@@ -10,9 +10,12 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 public class RpcDecoder extends ByteToMessageDecoder {
+    public static final AtomicInteger test = new AtomicInteger(1);
+
     @Override
     protected void decode(ChannelHandlerContext channelHandlerContext,
                           ByteBuf byteBuf, List<Object> list) throws Exception {
@@ -29,6 +32,7 @@ public class RpcDecoder extends ByteToMessageDecoder {
             if (type == Message.REQUEST) {
                 list.add(Message.buildRequest(ProtostuffUtil.deserialize(bytes, RpcRequest.class)));
             } else if (type == Message.RESPONSE) {
+                if (test.getAndAdd(1) <= 3) throw new RuntimeException("测试reExecute机制");
                 list.add(Message.buildResponse(ProtostuffUtil.deserialize(bytes, RpcResponse.class)));
             }
         }

@@ -88,3 +88,36 @@ RpcServerHandler extends SimpleChannelInboundHandler<Message>
 该类会初始化一个线程池用于执行获取请求结果的任务，这样做是为了不长时间占用channel的线程。
 在 channelRead0 方法中处理客户端发来的请求信息。对 IdleStateEvent 事件的处理是关闭该channel。
 #### 客户端的失败重连机制
+重连机制使用的是 guava-retrying
+```xml
+        <dependency>
+            <groupId>com.github.rholder</groupId>
+            <artifactId>guava-retrying</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+```
+尝试五次，每次间隔递增 5s
+```java
+        Retryer<Channel> retryer = RetryerBuilder.<Channel>newBuilder()
+                .retryIfExceptionOfType(Exception.class)
+                .withWaitStrategy(WaitStrategies.incrementingWait(5,
+                        TimeUnit.SECONDS, 5, TimeUnit.SECONDS))
+                .withStopStrategy(StopStrategies.stopAfterAttempt(5))
+                .build();
+        return retryer.call(() -> {
+            log.info("重新连接中...");
+            return connect();
+        });
+```
+RpcClientHandler 是客户端handler链中最后一个，我们在此捕获处理异常，对于异常利用重连机制进行重新连接。
+
+```java
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        log.info("客户端捕获异常");
+        // 在这里处理异常，不会继续往下传递
+        // 异常处理调用clinet的handleException，进行重新连接
+        cause.printStackTrace();
+        client.handleException();
+    }
+```

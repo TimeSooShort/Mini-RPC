@@ -66,7 +66,8 @@ public class RpcProxyFactoryBean implements FactoryBean<Object>, InitializingBea
                     log.info("客户端读到响应");
                     // 有异常就抛
                     if (response.hasError()) {
-                        throw response.getCause();
+                        log.info(response.getCause().toString());
+                        return null;
                     } else {
                         return response.getResult();
                     }
