@@ -28,7 +28,17 @@ public class ClientApplication implements CommandLineRunner{
             for (int i = 0; i < 3; i++){
                 log.info(helloService.hello(new User("张大"))+i);
                 log.info(helloService.hello(new User("张二"))+i);
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
                 log.info(helloService.hello(new User("张三"))+i);
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
                 log.info(helloService.hello(new User("李四"))+i);
             }
 

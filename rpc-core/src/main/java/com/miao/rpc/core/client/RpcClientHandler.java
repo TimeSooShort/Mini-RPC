@@ -46,8 +46,7 @@ public class RpcClientHandler extends SimpleChannelInboundHandler<Message> {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        // 在这里处理异常，不会继续往下传递
-        // 异常处理调用clinet的reExecute，重新发送这次请求
+        // 每个请求有两次重试的机会，超过限制则重新建立与服务器的连接
         String id = ctx.channel().attr(RpcClient.CURRENT_REQUEST).get().getRequestId();
         log.info("捕获 " + id + " 异常");
         log.info("异常信息："+ cause.toString());

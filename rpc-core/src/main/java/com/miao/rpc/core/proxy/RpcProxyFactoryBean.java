@@ -64,10 +64,9 @@ public class RpcProxyFactoryBean implements FactoryBean<Object>, InitializingBea
                     RpcResponseFuture responseFuture = client.execute(request);
                     RpcResponse response = responseFuture.getResponse(); // 阻塞
                     log.info("客户端读到响应");
-                    // 有异常就抛
+                    // 本次请求在结果分析中产生异常，重新请求后仍未解决，返回异常信息，客户端重新建立连接
                     if (response.hasError()) {
-                        log.info(response.getCause().toString());
-                        return null;
+                        return response.getCause().toString();
                     } else {
                         return response.getResult();
                     }

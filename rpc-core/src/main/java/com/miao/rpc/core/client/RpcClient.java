@@ -82,8 +82,12 @@ public class RpcClient {
             log.info("连接失败的处理策略为直接关闭， 关闭客户端");
             this.close();
         } else if (connectionFailureStrategy == ConnectionFailureStrategy.RETRY) {
-            log.info("开始重新连接");
+            log.info("异常处理策略为：RETRY，开始重新连接");
             try {
+                if (this.socketChannel != null) {
+                    socketChannel.close().sync();
+                    log.info("旧连接已关闭");
+                }
                 this.socketChannel = reconnect();
             } catch (ExecutionException e) {
                 log.error("重试过程中抛出异常，关闭客户端", e);
@@ -91,6 +95,8 @@ public class RpcClient {
             } catch (RetryException e) {
                 log.error("重试次数达到上限， 关闭客户端", e);
                 this.close();
+            } catch (InterruptedException e) {
+                log.info("就链接关闭失败，", e);
             }
         }
     }
@@ -158,7 +164,7 @@ public class RpcClient {
      */
     public RpcResponseFuture execute(RpcRequest request) {
         // 这里为了处理重连发生时，请求仍在继续的情况
-        while (this.socketChannel == null) {
+        while (!this.socketChannel.isActive()) {
             try {
                 log.info("客户端连接未建立，等待连接完成");
                 Thread.sleep(2000);

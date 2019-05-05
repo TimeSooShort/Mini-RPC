@@ -1,9 +1,9 @@
-### 简介
+## 简介
 这是个简单的 rpc demo,它实现的是这样一种rpc：
 服务端与客户端都知道有哪些服务接口，其实现类在服务端，
 客户端对接口的调用实际上是向服务端发出请求，服务端分析请求，
 调用该服务接口的具体实现，并将执行结果返回给客户端。
-### 项目结构
+## 项目结构
 
 **rpc-core 模块**：功能实现的代码都在该模块中。
 
@@ -22,7 +22,9 @@ sample 包下是测试用的例子：
 
 **sample/sample-server 模块**：服务接口实现类，依赖 rpc-server
 
-### 客户端如何发起 rpc 请求
+![Image text](https://github.com/TimeSooShort/Mini-RPC/blob/master/img-folder/rpc.JPG?raw=true)
+
+## 客户端如何发起 rpc 请求
 客户端对服务接口的调用实际上是向服务端发送请求，将自己要调用的服务接口类型，方法名，参数信息发送到服务端，
 服务端解析请求调用实现类，最后将结果返回给客户端。
 为客户端接口创建代理类，客户端对接口的调用背后是其代理类发出请求。
@@ -47,7 +49,7 @@ RpcProxyFactoryBeanRegistry 实现了 BeanDefinitionRegistryPostProcessor 接口
 这样便实现了客户端 rpc 请求的发送。我在这一篇博客中做了详细分析
 [BeanDefinitionRegistryPostProcessor与动态代理配合使用例子](https://blog.csdn.net/sinat_34976604/article/details/88785177)
 
-### 使用Netty通信
+## 使用Netty通信
 #### 信息
 客户端与服务端之间通信数据的JavaBean对象存放在 com.miao.rpc.core.domain 中，
 该包中有三个类：Message，RpcRequest，RpcResponse。
@@ -75,6 +77,9 @@ RpcResponse 封装任务执行结果，内部有 3 个字段
 Message ：我们将 RpcRequest ，RpcResponse 以及 心跳机制要发送的 PING/PONG 信息统一封装成该类，使用 byte type 字段来区分。
 #### 客户端与服务端中的handler链
 **客户端handler链**：
+
+![Image text](https://github.com/TimeSooShort/Mini-RPC/blob/master/img-folder/client.JPG?raw=true)
+
 IdleStateHandler：心跳机制
 LengthFieldPrepender，LengthFieldBasedFrameDecoder ：用于解决黏包和半包问题。
 RpcEncoder extends MessageToByteEncoder ：编码器，对 请求/响应 对象进行编码。
@@ -88,36 +93,22 @@ RpcServerHandler extends SimpleChannelInboundHandler<Message>
 该类会初始化一个线程池用于执行获取请求结果的任务，这样做是为了不长时间占用channel的线程。
 在 channelRead0 方法中处理客户端发来的请求信息。对 IdleStateEvent 事件的处理是关闭该channel。
 #### 客户端的失败重连机制
-重连机制使用的是 guava-retrying
-```xml
-        <dependency>
-            <groupId>com.github.rholder</groupId>
-            <artifactId>guava-retrying</artifactId>
-            <version>2.0.0</version>
-        </dependency>
-```
-尝试五次，每次间隔递增 5s
-```java
-        Retryer<Channel> retryer = RetryerBuilder.<Channel>newBuilder()
-                .retryIfExceptionOfType(Exception.class)
-                .withWaitStrategy(WaitStrategies.incrementingWait(5,
-                        TimeUnit.SECONDS, 5, TimeUnit.SECONDS))
-                .withStopStrategy(StopStrategies.stopAfterAttempt(5))
-                .build();
-        return retryer.call(() -> {
-            log.info("重新连接中...");
-            return connect();
-        });
-```
-RpcClientHandler 是客户端handler链中最后一个，我们在此捕获处理异常，对于异常利用重连机制进行重新连接。
+关于重连机制：RpcClientHandler是链中最后一个handler，由它来做异常的捕获，当解析结果时发生异常，
+重新发起请求，尝试次数限制为2，超过该限制则重新与服务端建立连接。
 
-```java
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        log.info("客户端捕获异常");
-        // 在这里处理异常，不会继续往下传递
-        // 异常处理调用clinet的handleException，进行重新连接
-        cause.printStackTrace();
-        client.handleException();
-    }
-```
+**请求重试** 需要本次的请求信息，即RpcRequest对象，所以在请求发起时将信息保存在channel中，异常发生时从channel中
+获取信息，调用RpcClientHandler#reExecute(RpcRequest)重新发起请求。同一请求id的异常次数统计，
+采用ConcurrentHashMap<String, AtomicInteger>来存储，注意ConcurrentHashMap的contains不是用来判断键值对是否存在的，
+应该使用containsKey，这个坑我掉过。
+
+**客户端重连** 重连前先删除 requestID -> RpcResponseFuture 以及 requestID -> 异常次数 映射关系，正常完成时也需要删除
+这两个记录还有channel附带的信息数据，注意客户端请求线程此时正在阻塞等待结果，由于我们要重新建立连接，
+所以需要唤醒客户端的线程，就是创建一个RpcResponse封装异常信息，通过这样唤醒请求线程，之后关闭旧的channel，注意由于
+客户端请求线程已唤醒，它们会不断发送消息，这就需要让它们在新连接未建立前先等待，即在RpcClient#execute方法中对channel的
+存活进行判断，重连用到了 guava retryer
+
+## 注册中心
+
+## 负载均衡
+
+## 序列化
