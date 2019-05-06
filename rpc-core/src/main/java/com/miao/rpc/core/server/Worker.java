@@ -22,7 +22,7 @@ public class Worker implements Runnable {
 
     @Override
     public void run() {
-        RpcResponse response = new RpcResponse();
+        RpcResponse response = new RpcResponse(); // 创建响应对象
         response.setRequestId(request.getRequestId());
         try {
             Object result = handle(request);
@@ -46,13 +46,13 @@ public class Worker implements Runnable {
      * @throws InvocationTargetException
      */
     private Object handle(RpcRequest request) throws InvocationTargetException {
-        String className = request.getClassName();
-        Object serviceBean = this.handlerMap.get(className);
+        String className = request.getClassName(); // 服务接口名
+        Object serviceBean = this.handlerMap.get(className); // 根据接口名来获取其实现类对象
 
-        String methodName = request.getMethodName();
-        Class<?>[] parameterTypes = request.getParameterTypes();
-        Object[] parameter = request.getParameters();
-
+        String methodName = request.getMethodName(); // 获取请求方法名
+        Class<?>[] parameterTypes = request.getParameterTypes(); // 参数类型
+        Object[] parameter = request.getParameters(); // 参数
+        // 反射利用CGLib
         FastClass serviceFastClass = FastClass.create(serviceBean.getClass());
         FastMethod serviceFastMethod = serviceFastClass.getMethod(methodName, parameterTypes);
         return serviceFastMethod.invoke(serviceBean, parameter);

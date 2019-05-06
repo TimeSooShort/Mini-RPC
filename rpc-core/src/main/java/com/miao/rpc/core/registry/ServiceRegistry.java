@@ -16,8 +16,11 @@ public class ServiceRegistry extends ZookeeperClient {
         super.connectServer(registryAddress);
     }
 
+    /**
+     * 向中心注册自己的地址信息，第一次会先创建/registry节点，地址都注册在该节点下
+     */
     public void registry(String data) {
-        // 创建永久节点registry
+        // 创建永久节点/registry
         if (!exist(ZK_REGISTRY_PATH)) {
             try {
                 zooKeeper.create(ZK_REGISTRY_PATH, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE,
@@ -26,6 +29,6 @@ public class ServiceRegistry extends ZookeeperClient {
                 log.error("创建/registry节点失败", e);
             }
         }
-        createNode(data, ZK_DATA_PATH);
+        createNode(data, ZK_DATA_PATH); // 向中心注册自己的地址信息
     }
 }

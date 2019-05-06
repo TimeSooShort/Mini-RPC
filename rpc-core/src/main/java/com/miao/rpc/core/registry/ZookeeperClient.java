@@ -48,10 +48,10 @@ public class ZookeeperClient {
         try {
             byte[] bytes = data.getBytes(Constant.UTF_8);
             zooKeeper.create(path, bytes, ZooDefs.Ids.OPEN_ACL_UNSAFE,
-                    CreateMode.EPHEMERAL_SEQUENTIAL);
+                    CreateMode.EPHEMERAL_SEQUENTIAL); // 顺序节点
             log.info("成功建立数据节点（{} =》{}）", path, data);
         } catch (KeeperException | InterruptedException e) {
-            log.error("createNode放生错误",e);
+            log.error("createNode发生错误",e);
         }
     }
 

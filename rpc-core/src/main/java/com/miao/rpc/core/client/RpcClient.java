@@ -173,9 +173,11 @@ public class RpcClient {
             }
         }
         log.info("客户端发起请求:{}", request);
+        //采用future模式，请求线程会立刻得到一个RpcResponseFuture对象，在结果未填充前getResponse会阻塞。
+        // 请求结果解析完成后，根据requestID获取该请求的RpcResponseFuture，调用setResponse填充结果并唤醒阻塞的请求线程
         RpcResponseFuture responseFuture = new RpcResponseFuture();
         this.requestWithItsResponse.put(request.getRequestId(), responseFuture);
-        this.socketChannel.attr(CURRENT_REQUEST).set(request);
+        this.socketChannel.attr(CURRENT_REQUEST).set(request); // 将请求信息与channel绑定，用于异常时重新请求使用
         this.socketChannel.writeAndFlush(Message.buildRequest(request));
         log.info("请求已发送");
         return responseFuture;
