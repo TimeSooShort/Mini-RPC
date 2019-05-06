@@ -21,7 +21,7 @@ public class RpcServerAutoConfiguration {
     public RpcServer rpcServer() {
         log.info("开始初始化RpcServer");
         log.info("properties：{}", properties);
-        ServiceRegistry registry = new ServiceRegistry(properties.getRegistryAddress());
-        return new RpcServer(properties.getServiceBaseAddress(), registry);
+        ServiceRegistry registry = new ServiceRegistry(properties.getRegistryAddress());//连接Zookeeper
+        return new RpcServer(properties.getServiceBaseAddress(), registry);//传入实现类路径
     }
 }

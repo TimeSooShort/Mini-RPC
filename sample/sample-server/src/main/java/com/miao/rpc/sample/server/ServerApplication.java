@@ -22,6 +22,6 @@ public class ServerApplication implements CommandLineRunner{
 
     @Override
     public void run(String... strings) throws Exception {
-        server.run(strings[0]);
+        server.run(strings[0]);//127.0.0.1:8787，在idea的启动参数里配置
     }
 }

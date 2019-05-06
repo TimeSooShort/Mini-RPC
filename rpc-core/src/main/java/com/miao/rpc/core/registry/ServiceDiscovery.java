@@ -18,11 +18,12 @@ public class ServiceDiscovery extends ZookeeperClient {
 
     public ServiceDiscovery(String registryAddress, LoadBalance loadBalance) {
         this.loadBalance = loadBalance;
-        super.connectServer(registryAddress);
+        super.connectServer(registryAddress);//连接zookeeper
     }
 
     public String discover(String clientAddress) {
         log.info("discovering...");
+        // 线程第一次请求，给/registry节点设置watch触发器，填充本地loadBalance中的地址信息
         if (discoveringThread == null) {
             this.discoveringThread = Thread.currentThread();
             watchNode();
@@ -36,16 +37,17 @@ public class ServiceDiscovery extends ZookeeperClient {
                 @Override
                 public void process(WatchedEvent event) {
                     if (event.getType() == Event.EventType.NodeChildrenChanged) {
-                        watchNode();
+                        watchNode(); // 一旦服务器地址发生改变，更新客户端本地的地址集合
                     }
                 }
             });
-            List<String> dataList = new ArrayList<>();
+            List<String> dataList = new ArrayList<>();// 存储全部的地址
             for (String node : nodeList) {
+                // 获取地址
                 byte[] bytes = zooKeeper.getData(ZookeeperConstant.ZK_REGISTRY_PATH + "/" + node, false, null);
                 dataList.add(new String(bytes, Constant.UTF_8));
             }
-            loadBalance.update(dataList);
+            loadBalance.update(dataList);//更新本地地址
             log.info("node data:{}", dataList);
         } catch (InterruptedException | KeeperException e) {
             log.error("", e);

@@ -24,6 +24,9 @@ sample 包下是测试用的例子：
 
 ![Image text](https://github.com/TimeSooShort/Mini-RPC/blob/master/img-folder/rpc.JPG?raw=true)
 
+## 启动方法
+
+
 ## 客户端如何发起 rpc 请求
 客户端对服务接口的调用实际上是向服务端发送请求，将自己要调用的服务接口类型，方法名，参数信息发送到服务端，
 服务端解析请求调用实现类，最后将结果返回给客户端。
@@ -49,8 +52,14 @@ RpcProxyFactoryBeanRegistry 实现了 BeanDefinitionRegistryPostProcessor 接口
 这样便实现了客户端 rpc 请求的发送。我在这一篇博客中做了详细分析
 [BeanDefinitionRegistryPostProcessor与动态代理配合使用例子](https://blog.csdn.net/sinat_34976604/article/details/88785177)
 
+## Client/Server端启动
+服务端启动流程：连接注册中心 -> 初始化：包括配置netty开启通道，向中心注册服务端地址，得到服务接口与其实现类对象的映射关系
+-> 已完成准备工作等待客户端的请求。
+
+客户端启动流程：代理类对象的创建与注入，连接注册中心 -> 初始化：包括netty的配置，向注册中心获取服务器地址，
+
 ## 使用Netty通信
-#### 信息
+### 信息
 客户端与服务端之间通信数据的JavaBean对象存放在 com.miao.rpc.core.domain 中，
 该包中有三个类：Message，RpcRequest，RpcResponse。
 
@@ -75,15 +84,48 @@ RpcResponse 封装任务执行结果，内部有 3 个字段
     }
 ```
 Message ：我们将 RpcRequest ，RpcResponse 以及 心跳机制要发送的 PING/PONG 信息统一封装成该类，使用 byte type 字段来区分。
-#### 客户端与服务端中的handler链
+```java
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Message {
+    private byte type;
+    private RpcRequest request;
+    private RpcResponse response;
+
+    public Message(byte type) {
+        this.type = type;
+    }
+
+    public static Message buildRequest(RpcRequest request) {
+        return new Message(Message.REQUEST, request, null);
+    }
+
+    public static Message buildResponse(RpcResponse response) {
+        return new Message(Message.RESPONSE, null, response);
+    }
+
+    public static final byte PING = 1;
+    public static final byte PONG = 1 << 1;
+    public static final byte REQUEST = 1 << 2;
+    public static final byte RESPONSE = 1 << 3;
+    public static final Message PING_MSG = new Message(Message.PING);
+    public static final Message PONG_MSG = new Message(Message.PONG);
+}
+```
+### 客户端与服务端中的handler链
 **客户端handler链**：
 
 ![Image text](https://github.com/TimeSooShort/Mini-RPC/blob/master/img-folder/client.JPG?raw=true)
 
 IdleStateHandler：心跳机制
+
 LengthFieldPrepender，LengthFieldBasedFrameDecoder ：用于解决黏包和半包问题。
+
 RpcEncoder extends MessageToByteEncoder ：编码器，对 请求/响应 对象进行编码。
+
 RpcDecoder extends ByteToMessageDecoder：解码器，将数据解码后封装成Message对象。
+
 RpcClientHandler extends SimpleChannelInboundHandler\<Message>：处理返回结果，向服务端发送心跳包，捕获异常。
 
 **服务端handler链**与客户端链相同，只是最后的handler是
@@ -92,7 +134,7 @@ RpcServerHandler extends SimpleChannelInboundHandler<Message>
 ```
 该类会初始化一个线程池用于执行获取请求结果的任务，这样做是为了不长时间占用channel的线程。
 在 channelRead0 方法中处理客户端发来的请求信息。对 IdleStateEvent 事件的处理是关闭该channel。
-#### 客户端的失败重连机制
+### 客户端的失败重连机制
 关于重连机制：RpcClientHandler是链中最后一个handler，由它来做异常的捕获，当解析结果时发生异常，
 重新发起请求，尝试次数限制为2，超过该限制则重新与服务端建立连接。
 
@@ -108,7 +150,70 @@ RpcServerHandler extends SimpleChannelInboundHandler<Message>
 存活进行判断，重连用到了 guava retryer
 
 ## 注册中心
+注册中心使用Zookeeper。
+服务端启动会先连接Zookeeper，
 
 ## 负载均衡
+首先关于loadBalance：从zookeeper中获得地址列表，构成节点储存在map中，客户端就是从map中获取服务器地址的，
+也就是说我们将地址存储在了本地客户端，这种方式可能导致客户端获得的地址是无效的，因为相应地址的服务器已下线，
+而地址信息还未及时更新，这里我采取的方式是在客户端连接远程时失败重连，利用guava retry，当连接出错旧多尝试几次。
 
+这里来说说com.miao.rpc.core.loadBalance.impl.ConsistentHashLoadBalance类，这是参考Dubbo的负载均衡算法实现的一致性hash，
+一个地址构成20个节点分散在circle圆上，这里circle用map来实现，节点插入如下
+```java
+        for (int i = 0; i < 20; i++) {
+            // 5轮循环，每次产生一个新的digest数组，一个数组产生4个hash，存储 hash->address 映射
+            // 这样就将一个地址尽量均匀的分散在circle的20处位置上
+            byte[] digest = md5(address + i);//经MD5加密得到一个byte[]数组
+            for (int k = 0; k < 4; k++) {
+                long m = hash(digest, k);
+                hashCircle.put(m, address);//插入circle圆中
+            }
+        }
+```
+hash算法如下
+```java
+    private long hash(byte[] digest, int number) {
+        return (((long)(digest[3 + number * 4] & 0xFF) << 24)
+                | ((long) (digest[2 + number*4] & 0xFF) << 16)
+                | ((long) (digest[1 + number*4] & 0xFF) << 8)
+                | (digest[number*4] & 0xFF))
+                & 0xFFFFFFFFL;
+    }
+```
+
+**关于线程安全**
+给/registry节点设置watch触发器，监听子节点的增/删事件，当事件发生也就是有服务器增加或删除，触发器会调用loadBalance的update
+方法，更新客户端本地存储的地址，当然这样仍然存在客户端获得失效地址的情况，该情况由客户端程序来处理，这里采用连接失败重试。
+所以update方法不存在竞争，也就不需要用锁保护，不过需要确保更新后地址的可见性，所以map使用并发容器ConcurrentSkipListMap。
+
+关于更新操作：多数情况可能是部分服务器的增加或下线，所以在更新本地的地址时应确保不影响不变部分。这里我们使用一个列表
+oldList来存储上次更新时的全部地址，在本次更新中与新的地址列表进行比较，删除失效的地址添加新地址。
+```java
+    public void update(List<String> addresses) {
+        if (oldAddress.size() == 0) {
+            oldAddress = addresses;
+            for (String address : addresses) {
+                add(address);
+            }
+        } else {
+            // 新旧地址集合取交集，这部分不用删除
+            Set<String> intersect = new HashSet<>(addresses);
+            intersect.retainAll(oldAddress); // 取交集
+            for (String address : oldAddress) {
+                if (!intersect.contains(address)) {
+                    remove(address);
+                }
+            }
+            // 将新地址集合中剩余部分添加进circle
+            for (String address : addresses) {
+                if (!intersect.contains(address)) {
+                    add(address);
+                }
+            }
+            oldAddress = addresses;
+        }
+    }
+```
+这里oldAddress是被volatile修饰的，由于我们并不会对列表中的元素进行操作，每次直接替换列表对象，所以使用volatile即可保证安全。
 ## 序列化

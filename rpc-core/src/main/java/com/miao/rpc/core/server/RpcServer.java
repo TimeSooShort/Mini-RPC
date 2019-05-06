@@ -36,7 +36,7 @@ import static com.miao.rpc.core.constant.Constant.LengthFieldConstant.MAX_FRAME_
 public class RpcServer implements ApplicationContextAware{
 
     private Map<String, Object> handlerMap = new HashMap<>(); // 接口名到服务对象之间的映射关系
-    private String serviceBasePackage;
+    private String serviceBasePackage; // 实现类路径
     private ServiceRegistry registry;
     private ApplicationContext applicationContext;
 
@@ -47,6 +47,8 @@ public class RpcServer implements ApplicationContextAware{
 
     public void initHandler() {
         log.info("serviceBasePackage:{}", serviceBasePackage);
+        // 利用Spring提供的扫描工具，到指定路径下扫描被@RpcService注解的类
+        // 存储 接口名 -> 接口实现类对象 的映射关系
         ClassPathScanningCandidateComponentProvider scanner =
                 new ClassPathScanningCandidateComponentProvider(false);
         scanner.addIncludeFilter(new AnnotationTypeFilter(RpcService.class));
